@@ -66,6 +66,10 @@ export function testConnector<TConnector extends Connector = Connector>(opts: {
         await db.sql`INSERT INTO users VALUES (${userId}, 'John', 'Doe', '')`;
         break;
       }
+      case "mssql": {
+        await db.sql`INSERT INTO users VALUES (${userId}, 'John', 'Doe', '')`;
+        break;
+      }
       default: {
         const { rows } =
           await db.sql`INSERT INTO users VALUES (${userId}, 'John', 'Doe', '') RETURNING *`;
@@ -102,3 +106,4 @@ export function testConnector<TConnector extends Connector = Connector>(opts: {
     );
   });
 }
+
