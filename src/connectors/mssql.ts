@@ -208,4 +208,3 @@ export function prepareSqlParameters(sql: string, parameters: unknown[]) {
     parameters: namedParameters,
   };
 }
-

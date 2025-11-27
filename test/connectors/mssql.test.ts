@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { TYPES } from "tedious";
 
 import {
@@ -7,6 +7,7 @@ import {
 } from "../../src/connectors/mssql";
 import connector from "../../src/connectors/mssql";
 import { testConnector } from "./_tests";
+import { createDatabase } from "../../src";
 
 describe.runIf(
   process.env.MSSQL_HOST &&
@@ -32,6 +33,109 @@ describe.runIf(
         encrypt: false,
       },
     }),
+  });
+});
+
+describe.runIf(
+  process.env.MSSQL_HOST &&
+    process.env.MSSQL_DB_NAME &&
+    process.env.MSSQL_USERNAME &&
+    process.env.MSSQL_PASSWORD,
+)("callProcedure", () => {
+  const db = createDatabase(
+    connector({
+      server: process.env.MSSQL_HOST!,
+      authentication: {
+        type: "default",
+        options: {
+          userName: process.env.MSSQL_USERNAME!,
+          password: process.env.MSSQL_PASSWORD!,
+        },
+      },
+      options: {
+        database: process.env.MSSQL_DB_NAME!,
+        port: Number.parseInt(process.env.MSSQL_PORT || "1433", 10),
+        trustServerCertificate: true,
+        encrypt: false,
+      },
+    }),
+  );
+
+  beforeAll(async () => {
+    // Drop procedure if it exists
+    await db.sql`
+      IF OBJECT_ID('dbo.GetUserCount', 'P') IS NOT NULL
+        DROP PROCEDURE dbo.GetUserCount
+    `;
+
+    // Drop procedure if it exists
+    await db.sql`
+      IF OBJECT_ID('dbo.AddNumbers', 'P') IS NOT NULL
+        DROP PROCEDURE dbo.AddNumbers
+    `;
+
+    // Create a simple stored procedure that returns user count
+    await db.sql`
+      CREATE PROCEDURE dbo.GetUserCount
+        @minAge INT
+      AS
+      BEGIN
+        SELECT COUNT(*) as userCount
+        FROM (VALUES (1, 25), (2, 30), (3, 35)) AS Users(id, age)
+        WHERE age >= @minAge
+      END
+    `;
+
+    // Create a stored procedure that adds two numbers
+    await db.sql`
+      CREATE PROCEDURE dbo.AddNumbers
+        @a INT,
+        @b INT
+      AS
+      BEGIN
+        SELECT (@a + @b) as result
+      END
+    `;
+  });
+
+  afterAll(async () => {
+    // Clean up procedures
+    await db.sql`
+      IF OBJECT_ID('dbo.GetUserCount', 'P') IS NOT NULL
+        DROP PROCEDURE dbo.GetUserCount
+    `;
+    await db.sql`
+      IF OBJECT_ID('dbo.AddNumbers', 'P') IS NOT NULL
+        DROP PROCEDURE dbo.AddNumbers
+    `;
+    await db.dispose();
+  });
+
+  it("should call a stored procedure with parameters", async () => {
+    const stmt = db.prepare("EXEC dbo.GetUserCount ?");
+    const rows = await stmt.all(30);
+    expect(rows).toBeDefined();
+    expect(rows.length).toBe(1);
+    expect(rows[0]).toHaveProperty("userCount");
+    expect((rows[0] as { userCount: number }).userCount).toBe(2);
+  });
+
+  it("should call a stored procedure with multiple parameters", async () => {
+    const stmt = db.prepare("EXEC dbo.AddNumbers ?, ?");
+    const rows = await stmt.all(10, 20);
+    expect(rows).toBeDefined();
+    expect(rows.length).toBe(1);
+    expect(rows[0]).toHaveProperty("result");
+    expect((rows[0] as { result: number }).result).toBe(30);
+  });
+
+  it("should call a stored procedure using prepare", async () => {
+    const stmt = db.prepare("EXEC dbo.AddNumbers ?, ?");
+    const rows = await stmt.all(5, 15);
+    expect(rows).toBeDefined();
+    expect(rows.length).toBe(1);
+    expect(rows[0]).toHaveProperty("result");
+    expect((rows[0] as { result: number }).result).toBe(20);
   });
 });
 
@@ -124,4 +228,3 @@ describe("prepareSqlParameters", () => {
     });
   });
 });
-

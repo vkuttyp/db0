@@ -106,4 +106,3 @@ export function testConnector<TConnector extends Connector = Connector>(opts: {
     );
   });
 }
-
