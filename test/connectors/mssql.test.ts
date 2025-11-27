@@ -137,6 +137,83 @@ describe.runIf(
     expect(rows[0]).toHaveProperty("result");
     expect((rows[0] as { result: number }).result).toBe(20);
   });
+
+  it("should return JSON data using FOR JSON PATH", async () => {
+    const stmt = db.prepare(`
+      SELECT 
+        id, 
+        firstName, 
+        lastName, 
+        email 
+      FROM (
+        VALUES 
+          (1, 'John', 'Doe', 'john@example.com'),
+          (2, 'Jane', 'Smith', 'jane@example.com')
+      ) AS Users(id, firstName, lastName, email)
+      FOR JSON PATH
+    `);
+    const rows = await stmt.all();
+    expect(rows).toBeDefined();
+    expect(rows.length).toBeGreaterThan(0);
+    
+    // SQL Server returns JSON as a single column result
+    // The JSON data is in the first column (usually named "JSON_F52E2B61-18A1-11d1-B105-00805F49916B")
+    const jsonColumn = Object.keys(rows[0] as object)[0];
+    const jsonString = (rows[0] as Record<string, string>)[jsonColumn];
+    
+    expect(jsonString).toBeDefined();
+    const jsonData = JSON.parse(jsonString);
+    expect(Array.isArray(jsonData)).toBe(true);
+    expect(jsonData.length).toBe(2);
+    expect(jsonData[0]).toMatchObject({
+      id: 1,
+      firstName: "John",
+      lastName: "Doe",
+      email: "john@example.com",
+    });
+    expect(jsonData[1]).toMatchObject({
+      id: 2,
+      firstName: "Jane",
+      lastName: "Smith",
+      email: "jane@example.com",
+    });
+  });
+
+  it("should return JSON data with nested structure using FOR JSON PATH", async () => {
+    const stmt = db.prepare(`
+      SELECT 
+        id, 
+        firstName, 
+        lastName,
+        (
+          SELECT email, phone
+          FROM (VALUES ('john@example.com', '555-1234')) AS Contact(email, phone)
+          FOR JSON PATH
+        ) AS contact
+      FROM (VALUES (1, 'John', 'Doe')) AS Users(id, firstName, lastName)
+      FOR JSON PATH
+    `);
+    const rows = await stmt.all();
+    expect(rows).toBeDefined();
+    
+    const jsonColumn = Object.keys(rows[0] as object)[0];
+    const jsonString = (rows[0] as Record<string, string>)[jsonColumn];
+    const jsonData = JSON.parse(jsonString);
+    
+    expect(Array.isArray(jsonData)).toBe(true);
+    expect(jsonData[0]).toHaveProperty("id", 1);
+    expect(jsonData[0]).toHaveProperty("firstName", "John");
+    expect(jsonData[0]).toHaveProperty("contact");
+    
+    // The nested contact is already a JSON string that needs to be parsed
+    const contactData = jsonData[0].contact;
+    const contact = typeof contactData === "string" ? JSON.parse(contactData) : contactData;
+    expect(Array.isArray(contact)).toBe(true);
+    expect(contact[0]).toMatchObject({
+      email: "john@example.com",
+      phone: "555-1234",
+    });
+  });
 });
 
 describe("getTediousDataType", () => {
