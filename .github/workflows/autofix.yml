@@ -1,28 +1,15 @@
-name: Run tests and upload coverage
-
-on: 
-  push
-
+name: autofix.ci
+on: { push: {}, pull_request: {} }
+permissions: { contents: read }
 jobs:
-  test:
-    name: Run tests and collect coverage
+  autofix:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 2
-
-      - name: Set up Node
-        uses: actions/setup-node@v4
-
-      - name: Install dependencies
-        run: npm install
-
-      - name: Run tests
-        run: npx vitest run --coverage
-
-      - name: Upload results to Codecov
-        uses: codecov/codecov-action@v5
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
+      - uses: actions/checkout@v6
+      - run: npm i -fg corepack && corepack enable
+      - uses: actions/setup-node@v6
+        with: { node-version: lts/*, cache: pnpm }
+      - run: pnpm install
+      - run: pnpm lint:fix
+      - uses: autofix-ci/action@635ffb0c9798bd160680f18fd73371e355b85f27
+        with: { commit-message: "chore: apply automated updates" }
