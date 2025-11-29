@@ -184,10 +184,7 @@ export function prepareSqlParameters(
   parameters: unknown[] = [],
 ): {
   sql: string;
-  parameters: Record<
-    string,
-    { name: string; type: DataType; value: unknown }
-  >;
+  parameters: Record<string, { name: string; type: DataType; value: unknown }>;
 } {
   const parameterIndexes: number[] = [];
   const tokens = [...sql];
