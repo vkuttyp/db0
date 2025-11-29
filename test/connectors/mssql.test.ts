@@ -74,6 +74,12 @@ describe.runIf(
         DROP PROCEDURE dbo.AddNumbers
     `;
 
+    // Drop procedure if it exists
+    await db.sql`
+      IF OBJECT_ID('dbo.ProcessUserData', 'P') IS NOT NULL
+        DROP PROCEDURE dbo.ProcessUserData
+    `;
+
     // Create a simple stored procedure that returns user count
     await db.sql`
       CREATE PROCEDURE dbo.GetUserCount
@@ -96,6 +102,21 @@ describe.runIf(
         SELECT (@a + @b) as result
       END
     `;
+
+    // Create a stored procedure that accepts JSON data
+    await db.sql`
+      CREATE PROCEDURE dbo.ProcessUserData
+        @jsonData NVARCHAR(MAX)
+      AS
+      BEGIN
+        -- Parse JSON and return the data
+        SELECT 
+          JSON_VALUE(@jsonData, '$.name') as name,
+          JSON_VALUE(@jsonData, '$.email') as email,
+          JSON_VALUE(@jsonData, '$.age') as age,
+          (SELECT * FROM OPENJSON(@jsonData, '$.hobbies') WITH (hobby NVARCHAR(100) '$') FOR JSON PATH) as hobbies
+      END
+    `;
   });
 
   afterAll(async () => {
@@ -108,11 +129,15 @@ describe.runIf(
       IF OBJECT_ID('dbo.AddNumbers', 'P') IS NOT NULL
         DROP PROCEDURE dbo.AddNumbers
     `;
+    await db.sql`
+      IF OBJECT_ID('dbo.ProcessUserData', 'P') IS NOT NULL
+        DROP PROCEDURE dbo.ProcessUserData
+    `;
     await db.dispose();
   });
 
   it("should call a stored procedure with parameters", async () => {
-    const stmt = db.prepare("EXEC dbo.GetUserCount ?");
+    const stmt = db.prepare("EXEC dbo.GetUserCount @minAge = ?");
     const rows = await stmt.all(30);
     expect(rows).toBeDefined();
     expect(rows.length).toBe(1);
@@ -121,7 +146,7 @@ describe.runIf(
   });
 
   it("should call a stored procedure with multiple parameters", async () => {
-    const stmt = db.prepare("EXEC dbo.AddNumbers ?, ?");
+    const stmt = db.prepare("EXEC dbo.AddNumbers @a = ?, @b = ?");
     const rows = await stmt.all(10, 20);
     expect(rows).toBeDefined();
     expect(rows.length).toBe(1);
@@ -130,7 +155,7 @@ describe.runIf(
   });
 
   it("should call a stored procedure using prepare", async () => {
-    const stmt = db.prepare("EXEC dbo.AddNumbers ?, ?");
+    const stmt = db.prepare("EXEC dbo.AddNumbers @a = ?, @b = ?");
     const rows = await stmt.all(5, 15);
     expect(rows).toBeDefined();
     expect(rows.length).toBe(1);
@@ -213,6 +238,65 @@ describe.runIf(
       email: "john@example.com",
       phone: "555-1234",
     });
+  });
+
+  it("should call a stored procedure with JSON parameter", async () => {
+    const userData = {
+      name: "Alice Johnson",
+      email: "alice@example.com",
+      age: "28",
+      hobbies: ["reading", "hiking", "photography"],
+    };
+    
+    const jsonString = JSON.stringify(userData);
+    const stmt = db.prepare("EXEC dbo.ProcessUserData @jsonData = ?");
+    const rows = await stmt.all(jsonString);
+    
+    expect(rows).toBeDefined();
+    expect(rows.length).toBe(1);
+    expect(rows[0]).toHaveProperty("name", "Alice Johnson");
+    expect(rows[0]).toHaveProperty("email", "alice@example.com");
+    expect(rows[0]).toHaveProperty("age", "28");
+    expect(rows[0]).toHaveProperty("hobbies");
+    
+    // Parse the hobbies JSON array
+    const hobbiesData = (rows[0] as Record<string, string>).hobbies;
+    if (hobbiesData) {
+      const hobbies = JSON.parse(hobbiesData);
+      expect(Array.isArray(hobbies)).toBe(true);
+      expect(hobbies.length).toBe(3);
+      expect(hobbies[0]).toHaveProperty("hobby", "reading");
+      expect(hobbies[1]).toHaveProperty("hobby", "hiking");
+      expect(hobbies[2]).toHaveProperty("hobby", "photography");
+    }
+  });
+
+  it("should call a stored procedure with complex JSON parameter", async () => {
+    const complexData = {
+      name: "Bob Smith",
+      email: "bob@example.com",
+      age: "35",
+      hobbies: ["gaming", "cooking"],
+    };
+    
+    const jsonString = JSON.stringify(complexData);
+    const stmt = db.prepare("EXEC dbo.ProcessUserData @jsonData = ?");
+    const rows = await stmt.all(jsonString);
+    
+    expect(rows).toBeDefined();
+    expect(rows.length).toBe(1);
+    
+    const result = rows[0] as Record<string, string>;
+    expect(result.name).toBe("Bob Smith");
+    expect(result.email).toBe("bob@example.com");
+    expect(result.age).toBe("35");
+    
+    // Verify hobbies array
+    if (result.hobbies) {
+      const hobbies = JSON.parse(result.hobbies);
+      expect(Array.isArray(hobbies)).toBe(true);
+      expect(hobbies.length).toBe(2);
+    }
   });
 });
 
