@@ -179,8 +179,17 @@ export function getTediousDataType(value: unknown): DataType {
 }
 
 // replace `?` placeholders with `@1`, `@2`, etc.
-export function prepareSqlParameters(sql: string, parameters: unknown[]) {
-  const parameterIndexes = [];
+export function prepareSqlParameters(
+  sql: string,
+  parameters: unknown[] = [],
+): {
+  sql: string;
+  parameters: Record<
+    string,
+    { name: string; type: DataType; value: unknown }
+  >;
+} {
+  const parameterIndexes: number[] = [];
   const tokens = [...sql];
 
   // find all `?` placeholders in the SQL string
@@ -190,7 +199,10 @@ export function prepareSqlParameters(sql: string, parameters: unknown[]) {
     }
   }
 
-  const namedParameters = {};
+  const namedParameters: Record<
+    string,
+    { name: string; type: DataType; value: unknown }
+  > = {};
   for (const [index, parameterIndex] of parameterIndexes.entries()) {
     const incrementedIndex = index + 1;
     // replace `?` placeholder with index-based parameter name
