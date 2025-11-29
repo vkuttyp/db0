@@ -180,12 +180,12 @@ describe.runIf(
     const rows = await stmt.all();
     expect(rows).toBeDefined();
     expect(rows.length).toBeGreaterThan(0);
-    
+
     // SQL Server returns JSON as a single column result
     // The JSON data is in the first column (usually named "JSON_F52E2B61-18A1-11d1-B105-00805F49916B")
     const jsonColumn = Object.keys(rows[0] as object)[0];
     const jsonString = (rows[0] as Record<string, string>)[jsonColumn];
-    
+
     expect(jsonString).toBeDefined();
     const jsonData = JSON.parse(jsonString);
     expect(Array.isArray(jsonData)).toBe(true);
@@ -220,19 +220,20 @@ describe.runIf(
     `);
     const rows = await stmt.all();
     expect(rows).toBeDefined();
-    
+
     const jsonColumn = Object.keys(rows[0] as object)[0];
     const jsonString = (rows[0] as Record<string, string>)[jsonColumn];
     const jsonData = JSON.parse(jsonString);
-    
+
     expect(Array.isArray(jsonData)).toBe(true);
     expect(jsonData[0]).toHaveProperty("id", 1);
     expect(jsonData[0]).toHaveProperty("firstName", "John");
     expect(jsonData[0]).toHaveProperty("contact");
-    
+
     // The nested contact is already a JSON string that needs to be parsed
     const contactData = jsonData[0].contact;
-    const contact = typeof contactData === "string" ? JSON.parse(contactData) : contactData;
+    const contact =
+      typeof contactData === "string" ? JSON.parse(contactData) : contactData;
     expect(Array.isArray(contact)).toBe(true);
     expect(contact[0]).toMatchObject({
       email: "john@example.com",
@@ -247,18 +248,18 @@ describe.runIf(
       age: "28",
       hobbies: ["reading", "hiking", "photography"],
     };
-    
+
     const jsonString = JSON.stringify(userData);
     const stmt = db.prepare("EXEC dbo.ProcessUserData @jsonData = ?");
     const rows = await stmt.all(jsonString);
-    
+
     expect(rows).toBeDefined();
     expect(rows.length).toBe(1);
     expect(rows[0]).toHaveProperty("name", "Alice Johnson");
     expect(rows[0]).toHaveProperty("email", "alice@example.com");
     expect(rows[0]).toHaveProperty("age", "28");
     expect(rows[0]).toHaveProperty("hobbies");
-    
+
     // Parse the hobbies JSON array
     const hobbiesData = (rows[0] as Record<string, string>).hobbies;
     if (hobbiesData) {
@@ -278,19 +279,19 @@ describe.runIf(
       age: "35",
       hobbies: ["gaming", "cooking"],
     };
-    
+
     const jsonString = JSON.stringify(complexData);
     const stmt = db.prepare("EXEC dbo.ProcessUserData @jsonData = ?");
     const rows = await stmt.all(jsonString);
-    
+
     expect(rows).toBeDefined();
     expect(rows.length).toBe(1);
-    
+
     const result = rows[0] as Record<string, string>;
     expect(result.name).toBe("Bob Smith");
     expect(result.email).toBe("bob@example.com");
     expect(result.age).toBe("35");
-    
+
     // Verify hobbies array
     if (result.hobbies) {
       const hobbies = JSON.parse(result.hobbies);
@@ -356,7 +357,7 @@ describe.runIf(
           DROP DATABASE [${testDbName}];
         END
       `);
-    } catch (error) {
+    } catch {
       // Ignore errors if database doesn't exist
     }
 
@@ -364,9 +365,7 @@ describe.runIf(
     await db.exec(`CREATE DATABASE [${testDbName}]`);
 
     // Verify the database exists
-    const stmt = db.prepare(
-      "SELECT name FROM sys.databases WHERE name = ?",
-    );
+    const stmt = db.prepare("SELECT name FROM sys.databases WHERE name = ?");
     const rows = await stmt.all(testDbName);
     expect(rows).toBeDefined();
     expect(rows.length).toBe(1);
@@ -395,9 +394,7 @@ describe.runIf(
     `);
 
     // Verify the database no longer exists
-    const stmt = db.prepare(
-      "SELECT name FROM sys.databases WHERE name = ?",
-    );
+    const stmt = db.prepare("SELECT name FROM sys.databases WHERE name = ?");
     const rows = await stmt.all(testDbName);
     expect(rows).toBeDefined();
     expect(rows.length).toBe(0);
