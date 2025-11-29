@@ -5,9 +5,11 @@ import {
   type ConnectionConfiguration,
   TYPES,
 } from "tedious";
-import type { DataType } from "tedious/lib/data-type";
 
-import type { Connector, Statement } from "../types";
+import type { Connector, Statement, Primitive } from "db0";
+
+// Type for tedious DataType
+type DataType = (typeof TYPES)[keyof typeof TYPES];
 
 export type ConnectorOptions = ConnectionConfiguration;
 
@@ -28,7 +30,11 @@ export default function mssqlConnector(opts: ConnectorOptions) {
         _client = client;
       });
 
-      client.on("connect", () => resolve(_client));
+      client.on("connect", () => {
+        if (_client) {
+          resolve(_client);
+        }
+      });
       client.on("error", reject);
     });
   }
@@ -64,7 +70,7 @@ export default function mssqlConnector(opts: ConnectorOptions) {
 
         const rows: unknown[] = [];
         request.on("row", (columns = []) => {
-          const currentRow = {};
+          const currentRow: Record<string, unknown> = {};
           for (const column of columns) {
             const { value, metadata } = column;
             const { colName } = metadata;
@@ -111,30 +117,31 @@ export default function mssqlConnector(opts: ConnectorOptions) {
       return _run(sql, []);
     },
     prepare(sql: string) {
-      const statement = <Statement>{
-        _sql: sql,
-        _params: [],
-        bind(...params) {
+      let _sql = sql;
+      let _params: Primitive[] = [];
+
+      const statement: Statement = {
+        bind(...params: Primitive[]) {
           if (params.length > 0) {
-            this._params = params;
+            _params = params;
           }
           return statement;
         },
-        async all(...params) {
-          const { rows } = await _run(this._sql, params || this._params);
+        async all(...params: Primitive[]) {
+          const { rows } = await _run(_sql, params.length > 0 ? params : _params);
           return rows;
         },
-        async run(...params) {
+        async run(...params: Primitive[]) {
           const { success = false } =
-            (await _run(this._sql, params || this._params)) || {};
+            (await _run(_sql, params.length > 0 ? params : _params)) || {};
           return {
             success,
           };
         },
-        async get(...params) {
+        async get(...params: Primitive[]) {
           const {
             rows: [row],
-          } = await _run(this._sql, params || this._params);
+          } = await _run(_sql, params.length > 0 ? params : _params);
           return row;
         },
       };
