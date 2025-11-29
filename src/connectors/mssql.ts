@@ -117,7 +117,7 @@ export default function mssqlConnector(opts: ConnectorOptions) {
       return _run(sql, []);
     },
     prepare(sql: string) {
-      let _sql = sql;
+      const _sql = sql;
       let _params: Primitive[] = [];
 
       const statement: Statement = {
@@ -128,7 +128,10 @@ export default function mssqlConnector(opts: ConnectorOptions) {
           return statement;
         },
         async all(...params: Primitive[]) {
-          const { rows } = await _run(_sql, params.length > 0 ? params : _params);
+          const { rows } = await _run(
+            _sql,
+            params.length > 0 ? params : _params,
+          );
           return rows;
         },
         async run(...params: Primitive[]) {
