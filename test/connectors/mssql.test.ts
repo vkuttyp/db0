@@ -216,6 +216,110 @@ describe.runIf(
   });
 });
 
+describe.runIf(
+  process.env.MSSQL_HOST &&
+    process.env.MSSQL_USERNAME &&
+    process.env.MSSQL_PASSWORD,
+)("createDatabase", () => {
+  const testDbName = "TestDB_CreateTest";
+  let db: ReturnType<typeof createDatabase>;
+
+  beforeAll(() => {
+    // Connect to master database to create/drop test database
+    db = createDatabase(
+      connector({
+        server: process.env.MSSQL_HOST!,
+        authentication: {
+          type: "default",
+          options: {
+            userName: process.env.MSSQL_USERNAME!,
+            password: process.env.MSSQL_PASSWORD!,
+          },
+        },
+        options: {
+          database: "master",
+          port: Number.parseInt(process.env.MSSQL_PORT || "1433", 10),
+          trustServerCertificate: true,
+          encrypt: false,
+        },
+      }),
+    );
+  });
+
+  afterAll(async () => {
+    // Clean up: drop the test database if it exists
+    // try {
+    //   await db.exec(`
+    //     IF EXISTS (SELECT * FROM sys.databases WHERE name = '${testDbName}')
+    //     BEGIN
+    //       ALTER DATABASE [${testDbName}] SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
+    //       DROP DATABASE [${testDbName}];
+    //     END
+    //   `);
+    // } catch (error) {
+    //   // Ignore errors if database doesn't exist
+    // }
+    await db.dispose();
+  });
+
+  it("should create a new database", async () => {
+    // Drop database if it exists from previous failed test
+    try {
+      await db.exec(`
+        IF EXISTS (SELECT * FROM sys.databases WHERE name = '${testDbName}')
+        BEGIN
+          ALTER DATABASE [${testDbName}] SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
+          DROP DATABASE [${testDbName}];
+        END
+      `);
+    } catch (error) {
+      // Ignore errors if database doesn't exist
+    }
+
+    // Create the database
+    await db.exec(`CREATE DATABASE [${testDbName}]`);
+
+    // Verify the database exists
+    const stmt = db.prepare(
+      "SELECT name FROM sys.databases WHERE name = ?",
+    );
+    const rows = await stmt.all(testDbName);
+    expect(rows).toBeDefined();
+    expect(rows.length).toBe(1);
+    expect((rows[0] as { name: string }).name).toBe(testDbName);
+  });
+
+  it("should check if database exists", async () => {
+    const stmt = db.prepare(`
+      SELECT CASE 
+        WHEN EXISTS (SELECT * FROM sys.databases WHERE name = ?)
+        THEN 1
+        ELSE 0
+      END as dbExists
+    `);
+    const rows = await stmt.all(testDbName);
+    expect(rows).toBeDefined();
+    expect(rows.length).toBe(1);
+    expect((rows[0] as { dbExists: number }).dbExists).toBe(1);
+  });
+
+  it.skip("should drop an existing database", async () => {
+    // Drop the database
+    await db.exec(`
+      ALTER DATABASE [${testDbName}] SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
+      DROP DATABASE [${testDbName}];
+    `);
+
+    // Verify the database no longer exists
+    const stmt = db.prepare(
+      "SELECT name FROM sys.databases WHERE name = ?",
+    );
+    const rows = await stmt.all(testDbName);
+    expect(rows).toBeDefined();
+    expect(rows.length).toBe(0);
+  });
+});
+
 describe("getTediousDataType", () => {
   it("should return NVarChar for null", () => {
     expect(getTediousDataType(null)).toBe(TYPES.NVarChar);
