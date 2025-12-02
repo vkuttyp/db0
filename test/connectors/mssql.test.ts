@@ -4,10 +4,10 @@ import { TYPES } from "tedious";
 import {
   getTediousDataType,
   prepareSqlParameters,
-} from "../../src/connectors/mssql";
-import connector from "../../src/connectors/mssql";
-import { testConnector } from "./_tests";
-import { createDatabase } from "../../src";
+} from "../../src/connectors/mssql.js";
+import connector from "../../src/connectors/mssql.js";
+import { testConnector } from "./_tests.js";
+import { createDatabase } from "../../src/index.js";
 
 describe.runIf(
   process.env.MSSQL_HOST &&
@@ -80,6 +80,12 @@ describe.runIf(
         DROP PROCEDURE dbo.ProcessUserData
     `;
 
+    // Drop procedure if it exists
+    await db.sql`
+      IF OBJECT_ID('dbo.CalculateWithOutput', 'P') IS NOT NULL
+        DROP PROCEDURE dbo.CalculateWithOutput
+    `;
+
     // Create a simple stored procedure that returns user count
     await db.sql`
       CREATE PROCEDURE dbo.GetUserCount
@@ -117,6 +123,23 @@ describe.runIf(
           (SELECT * FROM OPENJSON(@jsonData, '$.hobbies') WITH (hobby NVARCHAR(100) '$') FOR JSON PATH) as hobbies
       END
     `;
+
+    // Create a stored procedure with output parameters
+    await db.sql`
+      CREATE PROCEDURE dbo.CalculateWithOutput
+        @a INT,
+        @b INT,
+        @sum INT OUTPUT,
+        @product INT OUTPUT,
+        @difference INT OUTPUT
+      AS
+      BEGIN
+        SET @sum = @a + @b
+        SET @product = @a * @b
+        SET @difference = @a - @b
+        SELECT @sum as calculatedSum, @product as calculatedProduct, @difference as calculatedDifference
+      END
+    `;
   });
 
   afterAll(async () => {
@@ -132,6 +155,10 @@ describe.runIf(
     await db.sql`
       IF OBJECT_ID('dbo.ProcessUserData', 'P') IS NOT NULL
         DROP PROCEDURE dbo.ProcessUserData
+    `;
+    await db.sql`
+      IF OBJECT_ID('dbo.CalculateWithOutput', 'P') IS NOT NULL
+        DROP PROCEDURE dbo.CalculateWithOutput
     `;
     await db.dispose();
   });
@@ -163,6 +190,84 @@ describe.runIf(
     expect((rows[0] as { result: number }).result).toBe(20);
   });
 
+  it("should call a stored procedure with output parameters", async () => {
+    // Declare output variables and execute the stored procedure
+    const stmt = db.prepare(`
+      DECLARE @sum INT, @product INT, @difference INT;
+      EXEC dbo.CalculateWithOutput 
+        @a = ?, 
+        @b = ?,
+        @sum = @sum OUTPUT,
+        @product = @product OUTPUT,
+        @difference = @difference OUTPUT;
+      SELECT @sum as sum, @product as product, @difference as difference;
+    `);
+
+    const rows = await stmt.all(10, 5);
+    expect(rows).toBeDefined();
+    // The stored procedure returns a result set, plus we SELECT the output values
+    // So we get 2 rows: one from the procedure, one from the SELECT
+    expect(rows.length).toBe(2);
+
+    // First row is from the stored procedure's SELECT statement
+    const procResult = rows[0] as {
+      calculatedSum: number;
+      calculatedProduct: number;
+      calculatedDifference: number;
+    };
+    expect(procResult.calculatedSum).toBe(15);
+    expect(procResult.calculatedProduct).toBe(50);
+    expect(procResult.calculatedDifference).toBe(5);
+
+    // Second row is from our SELECT of output parameters
+    const outputResult = rows[1] as {
+      sum: number;
+      product: number;
+      difference: number;
+    };
+    expect(outputResult.sum).toBe(15);
+    expect(outputResult.product).toBe(50);
+    expect(outputResult.difference).toBe(5);
+  });
+
+  it("should call a stored procedure with output parameters and result set", async () => {
+    // Test that we can get both the result set and output parameters
+    const stmt = db.prepare(`
+      DECLARE @sum INT, @product INT, @difference INT;
+      EXEC dbo.CalculateWithOutput 
+        @a = ?, 
+        @b = ?,
+        @sum = @sum OUTPUT,
+        @product = @product OUTPUT,
+        @difference = @difference OUTPUT;
+      SELECT @sum as outputSum, @product as outputProduct, @difference as outputDifference;
+    `);
+
+    const rows = await stmt.all(20, 8);
+    expect(rows).toBeDefined();
+    expect(rows.length).toBe(2);
+
+    // First row is from the stored procedure's internal SELECT
+    const procResult = rows[0] as {
+      calculatedSum: number;
+      calculatedProduct: number;
+      calculatedDifference: number;
+    };
+    expect(procResult.calculatedSum).toBe(28);
+    expect(procResult.calculatedProduct).toBe(160);
+    expect(procResult.calculatedDifference).toBe(12);
+
+    // Second row is from our SELECT of output parameters
+    const outputResult = rows[1] as {
+      outputSum: number;
+      outputProduct: number;
+      outputDifference: number;
+    };
+    expect(outputResult.outputSum).toBe(28);
+    expect(outputResult.outputProduct).toBe(160);
+    expect(outputResult.outputDifference).toBe(12);
+  });
+
   it("should return JSON data using FOR JSON PATH", async () => {
     const stmt = db.prepare(`
       SELECT 
@@ -183,8 +288,8 @@ describe.runIf(
 
     // SQL Server returns JSON as a single column result
     // The JSON data is in the first column (usually named "JSON_F52E2B61-18A1-11d1-B105-00805F49916B")
-    const jsonColumn = Object.keys(rows[0] as object)[0];
-    const jsonString = (rows[0] as Record<string, string>)[jsonColumn];
+    const jsonColumn = Object.keys(rows[0] as object)[0]!;
+    const jsonString = (rows[0] as Record<string, string>)[jsonColumn]!;
 
     expect(jsonString).toBeDefined();
     const jsonData = JSON.parse(jsonString);
@@ -221,8 +326,8 @@ describe.runIf(
     const rows = await stmt.all();
     expect(rows).toBeDefined();
 
-    const jsonColumn = Object.keys(rows[0] as object)[0];
-    const jsonString = (rows[0] as Record<string, string>)[jsonColumn];
+    const jsonColumn = Object.keys(rows[0] as object)[0]!;
+    const jsonString = (rows[0] as Record<string, string>)[jsonColumn]!;
     const jsonData = JSON.parse(jsonString);
 
     expect(Array.isArray(jsonData)).toBe(true);
@@ -238,6 +343,41 @@ describe.runIf(
     expect(contact[0]).toMatchObject({
       email: "john@example.com",
       phone: "555-1234",
+    });
+  });
+
+  it("should return single JSON object using FOR JSON PATH, WITHOUT_ARRAY_WRAPPER", async () => {
+    const stmt = db.prepare(`
+      SELECT 
+        id, 
+        firstName, 
+        lastName, 
+        email,
+        age
+      FROM (
+        VALUES (1, 'John', 'Doe', 'john@example.com', 30)
+      ) AS Users(id, firstName, lastName, email, age)
+      FOR JSON PATH, WITHOUT_ARRAY_WRAPPER
+    `);
+    const rows = await stmt.all();
+    expect(rows).toBeDefined();
+    expect(rows.length).toBeGreaterThan(0);
+
+    // SQL Server returns JSON as a single column result
+    const jsonColumn = Object.keys(rows[0] as object)[0]!;
+    const jsonString = (rows[0] as Record<string, string>)[jsonColumn]!;
+
+    expect(jsonString).toBeDefined();
+    const jsonData = JSON.parse(jsonString);
+
+    // WITHOUT_ARRAY_WRAPPER returns a single object, not an array
+    expect(Array.isArray(jsonData)).toBe(false);
+    expect(jsonData).toMatchObject({
+      id: 1,
+      firstName: "John",
+      lastName: "Doe",
+      email: "john@example.com",
+      age: 30,
     });
   });
 
@@ -403,6 +543,7 @@ describe.runIf(
 
 describe("getTediousDataType", () => {
   it("should return NVarChar for null", () => {
+    // eslint-disable-next-line unicorn/no-null
     expect(getTediousDataType(null)).toBe(TYPES.NVarChar);
   });
 
@@ -479,12 +620,14 @@ describe("prepareSqlParameters", () => {
 
   it("should handle null and undefined parameters", () => {
     const sql = "SELECT * FROM users WHERE name = ? AND email = ?";
+    // eslint-disable-next-line unicorn/no-null
     const parameters = [null, undefined];
     const result = prepareSqlParameters(sql, parameters);
     expect(result.sql).toBe(
       "SELECT * FROM users WHERE name = @1 AND email = @2",
     );
     expect(result.parameters).toEqual({
+      // eslint-disable-next-line unicorn/no-null
       "@1": { name: "1", type: TYPES.NVarChar, value: null },
       "@2": { name: "2", type: TYPES.NVarChar, value: undefined },
     });
