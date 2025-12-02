@@ -543,7 +543,6 @@ describe.runIf(
 
 describe("getTediousDataType", () => {
   it("should return NVarChar for null", () => {
-    // eslint-disable-next-line unicorn/no-null
     expect(getTediousDataType(null)).toBe(TYPES.NVarChar);
   });
 
@@ -620,14 +619,13 @@ describe("prepareSqlParameters", () => {
 
   it("should handle null and undefined parameters", () => {
     const sql = "SELECT * FROM users WHERE name = ? AND email = ?";
-    // eslint-disable-next-line unicorn/no-null
+
     const parameters = [null, undefined];
     const result = prepareSqlParameters(sql, parameters);
     expect(result.sql).toBe(
       "SELECT * FROM users WHERE name = @1 AND email = @2",
     );
     expect(result.parameters).toEqual({
-      // eslint-disable-next-line unicorn/no-null
       "@1": { name: "1", type: TYPES.NVarChar, value: null },
       "@2": { name: "2", type: TYPES.NVarChar, value: undefined },
     });
