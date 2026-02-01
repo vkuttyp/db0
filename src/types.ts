@@ -3,7 +3,7 @@
  */
 export type Primitive = string | number | boolean | undefined | null;
 
-export type SQLDialect = "mysql" | "postgresql" | "sqlite" | "libsql";
+export type SQLDialect = "mysql" | "postgresql" | "sqlite" | "libsql" | "mssql";
 
 export type Statement = {
   /**
@@ -118,8 +118,9 @@ type DefaultSQLResult = {
   success?: boolean;
 };
 
-export interface Database<TConnector extends Connector = Connector>
-  extends AsyncDisposable {
+export interface Database<
+  TConnector extends Connector = Connector,
+> extends AsyncDisposable {
   readonly dialect: SQLDialect;
 
   /**
