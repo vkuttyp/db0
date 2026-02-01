@@ -17,8 +17,12 @@
     "noImplicitOverride": true,
     "noEmit": true,
     "paths": {
-      "db0/connectors/*": ["./src/connectors/*"]
+      "db0/connectors/*": [
+        "./src/connectors/*"
+      ]
     }
   },
-  "include": ["src"]
+  "include": [
+    "src"
+  ]
 }

@@ -2,7 +2,7 @@ services:
   pg:
     # https://hub.docker.com/_/postgres
     image: postgres:alpine
-    network_mode: "host"
+    ports: ["5432:5432"]
     environment:
       POSTGRES_USER: test
       POSTGRES_PASSWORD: test
@@ -10,9 +10,17 @@ services:
   mysql:
     # https://hub.docker.com/_/mysql
     image: mysql
-    network_mode: "host"
+    ports: ["3306:3306"]
     environment:
       MYSQL_ROOT_PASSWORD: test
       MYSQL_DATABASE: db0
       MYSQL_USER: test
       MYSQL_PASSWORD: test
+  mssql:
+    # https://hub.docker.com/_/microsoft-mssql-server
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    ports: ["1433:1433"]
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "MyStrong!Passw0rd"
+      MSSQL_PID: "Developer"
