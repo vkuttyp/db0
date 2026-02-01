@@ -50,10 +50,6 @@ const connectors: {
   optionsTName?: string;
 }[] = [];
 
-const connectorOptionsNameAliases: Record<string, string> = {
-  "mssql": "MSSQL"
-};
-
 for (const entry of connectorEntries) {
   const pathName = entry.replace(/\.ts$/, "");
   const name = pathName.replace(/\/|\\/g, "-");
@@ -71,7 +67,7 @@ for (const entry of connectorEntries) {
 
   const names = [...new Set([name, ...alternativeNames])];
 
-  const optionsTName = (connectorOptionsNameAliases[name] || upperFirst(safeName)) + "Options";
+  const optionsTName = upperFirst(safeName) + "Options";
 
   connectors.push({
     name,

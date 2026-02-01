@@ -4,7 +4,7 @@ export default defineConfig({
   test: {
     setupFiles: ["dotenv/config"],
     coverage: {
-      reporter: ["text", "clover", "json", "html"],
+      reporter: ["text", "clover", "json"],
       include: ["src/**/*.ts"],
     },
   },
