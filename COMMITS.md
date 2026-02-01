@@ -37,8 +37,8 @@ This document lists 9 commits that should be preserved in the git history. When 
 ## Merge Instructions
 
 When merging this PR:
-- ✅ Use **"Create a merge commit"** option
-- ❌ Do NOT use "Squash and merge"
-- ❌ Do NOT use "Rebase and merge" (unless you want to preserve individual commits)
+- ✅ Use **"Create a merge commit"** option (recommended)
+- ✅ Or use **"Rebase and merge"** (also preserves individual commits)
+- ❌ Do NOT use "Squash and merge" (will collapse all commits into one)
 
 This ensures that all 9 commits remain visible in the project's git history for future reference and debugging.
